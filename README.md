@@ -33,12 +33,37 @@ This is a heavily modified private build. The main differences:
 - **An expanded verification battery** (`npm run verify:*`) with per-feature exit
   tests and rendered-screen scans.
 
-## Quick start
+## Minimal install and configuration
 
-- Node 24 (see `.nvmrc`)
-- `npm ci`
-- `npm run build`
-- `npm run start:prod` → http://127.0.0.1:5199
+Requirements:
+
+- Windows (the serving model is developed and verified on Windows), Node 24
+  (see `.nvmrc`), and network access during install and build only.
+- FFmpeg/FFprobe are bundled through npm dependencies — nothing to install or
+  put on PATH.
+
+Steps:
+
+1. `npm ci`
+2. `npm run build` — this also downloads the whisper.cpp CLI (v1.9.2) and the
+   MediaPipe models used by the local AI features.
+3. (recommended) create a `.env.local` file with one line:
+   `UI_LOCALE=en` — this snapshot still defaults the interface locale to `zh`
+   when no locale is configured.
+4. `npm run start:prod` → open http://127.0.0.1:5199
+
+Configuration notes:
+
+- No configuration file is required to edit and export video: import media,
+  cut, apply looks, export.
+- All six AI features run locally on this machine. Voice isolation downloads
+  the Spleeter ONNX weights once, on first use (hash-checked).
+- AI chat keys are optional: copy `.env.example` to `.env.local` and fill any
+  `LLM_*_API_KEY` provider you want for the agent chat. Local AI features do
+  not use them.
+- Serving is loopback-only (127.0.0.1). The media store lives in the repo's
+  data directory by default; `OPENCHATCUT_DATA_DIR` in `.env.local` moves it
+  (see `.env.example` for every key).
 
 ## What is in the snapshot
 
