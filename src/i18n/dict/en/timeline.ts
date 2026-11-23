@@ -233,6 +233,8 @@ export default {
   '无法对齐所选片段（置信度过低或解码失败）': 'Could not align the selected clips (low confidence or decode failed)',
   '多机位同步失败': 'Multicam sync failed',
   '取消同步锁定': 'Unlock sync',
+  '分离音频': 'Detach audio',
+  '合并音频': 'Merge audio',
   '取消链接音视频': 'Unlink audio & video',
   '同步锁定所选片段': 'Sync-lock selected clips',
   '复制字幕': 'Copy captions',

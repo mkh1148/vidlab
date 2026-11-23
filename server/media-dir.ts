@@ -16,6 +16,8 @@ import {
   type RuntimeProfile,
 } from './runtime-profile.ts';
 import { resolveMediaReference } from './media-references.ts';
+import { localized } from './ui-locale.ts';
+import type { LocalizedText } from './data-dir.ts';
 
 export const DEFAULT_UPLOAD_DIR = join(process.cwd(), 'public', 'media', 'uploads');
 
@@ -368,10 +370,13 @@ export async function syncLegacyUploads(
 
 // ── Test connection probe ────────────────────────────────────────────────────
 
-interface DirProbeBody { ok: boolean; note?: string; error?: string; }
+interface DirProbeBody { ok: boolean; note?: LocalizedText; error?: LocalizedText; }
 
 /** Local save directory probe: Heng 200 + JSON {ok,note|error} (not a network request, you should not leave if it fails
- * HTTP copy of classifyStatus) - postCheck takes error, okText takes note.*/
+ * HTTP copy of classifyStatus) - postCheck takes error, okText takes note.
+ * The note/error are LocalizedText so the two consumers below pick the interface
+ * language exactly like data-dir.ts does — a raw Chinese note here reached the
+ * settings status line verbatim. */
 export async function mediaDirProbe(get: (name: KeyName) => string): Promise<Response> {
   const body = await checkMediaDir(get('MEDIA_DIR'));
   return new Response(JSON.stringify(body), {
@@ -384,26 +389,51 @@ export async function checkMediaDir(
   profile: RuntimeProfile = runtimeProfile(),
 ): Promise<DirProbeBody> {
   if (isIsolatedDevProfile(profile)) {
-    return { ok: false, error: '隔离开发配置固定使用独立素材目录，不能修改 MEDIA_DIR' };
+    return {
+      ok: false,
+      error: {
+        zh: '隔离开发配置固定使用独立素材目录，不能修改 MEDIA_DIR',
+        en: 'The isolated development profile uses its own media directory; MEDIA_DIR cannot be changed',
+      },
+    };
   }
-  if (!raw.trim()) return { ok: true, note: `未设置 · 使用默认目录 ${profile.mediaDir}` };
+  if (!raw.trim()) {
+    return {
+      ok: true,
+      note: {
+        zh: `未设置 · 使用默认目录 ${profile.mediaDir}`,
+        en: `Not set · using the default directory ${profile.mediaDir}`,
+      },
+    };
+  }
   const dir = expandMediaDir(raw);
-  if (!dir) return { ok: false, error: '必须是绝对路径（可用 ~/ 开头）' };
+  if (!dir) {
+    return {
+      ok: false,
+      error: { zh: '必须是绝对路径（可用 ~/ 开头）', en: 'Must be an absolute path (a leading ~/ is allowed)' },
+    };
+  }
   try {
     await mkdir(dir, { recursive: true });
     const probe = join(dir, `.cc-dir-probe-${process.pid}`);
     await writeFile(probe, 'ok');
     await unlink(probe);
-    return { ok: true, note: `目录可写 · ${dir}` };
+    return { ok: true, note: { zh: `目录可写 · ${dir}`, en: `The directory is writable · ${dir}` } };
   } catch (err) {
-    return { ok: false, error: `目录不可写 · ${err instanceof Error ? err.message : String(err)}` };
+    const detail = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      error: { zh: `目录不可写 · ${detail}`, en: `The directory is not writable · ${detail}` },
+    };
   }
 }
 
 export function mediaDirPostCheck(bodyText: string): string | null {
   try {
     const body = JSON.parse(bodyText) as DirProbeBody;
-    return body.ok ? null : (body.error ?? '目录检查失败');
+    return body.ok ? null : localized(body.error ?? {
+      zh: '目录检查失败', en: 'The directory check failed',
+    });
   } catch {
     return null;
   }
@@ -411,7 +441,8 @@ export function mediaDirPostCheck(bodyText: string): string | null {
 
 export function mediaDirOkText(bodyText: string): string | null {
   try {
-    return (JSON.parse(bodyText) as DirProbeBody).note ?? null;
+    const note = (JSON.parse(bodyText) as DirProbeBody).note;
+    return note ? localized(note) : null;
   } catch {
     return null;
   }

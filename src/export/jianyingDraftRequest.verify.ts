@@ -7,9 +7,12 @@ import { CURRENT_PROJECT_VERSION } from '../../shared/project-version.js';
 import type { AgentContext } from '../agent/context';
 import { jianyingExportBody } from '../agent/tools/jianying-export-tool';
 import type { CaptionsData } from '../captions/types';
+import { planAudioDetach, planAudioMerge } from '../editor/audioDetach';
+import { reduce } from '../editor/reduce';
+import type { Action } from '../editor/reducerActions';
 import { isSequenceGraphError } from '../editor/sequenceGraph';
 import { timelinePlacements } from '../editor/sequenceFlatten';
-import type { ProjectDoc, Timeline, TimelineItem } from '../editor/types';
+import type { ProjectDoc, Timeline, TimelineItem, TimelineState } from '../editor/types';
 import { jianyingDraftTarget, jianyingStoreHint } from './jianyingDraftPreference';
 import { jianyingDraftPayload, type JianyingDraftClip } from './jianyingDraftRequest';
 
@@ -193,6 +196,48 @@ const sourceWindows = (clips: JianyingDraftClip[]) => clips.map((item) => [item.
     'cues sit where the trimmed clip plays the words (clip at 1 s, in-point 2 s); "early" is never heard');
   assert.deepEqual(payload.items.map((item) => [item.startFrame, item.srcInFrame]), [[30, 60]]);
   assert.deepEqual(jianyingDraftPayload(project([captioned(false)])).captions, []);
+}
+
+// ── AV1: a detached pair reaches the draft picture-only, its sound once ──────
+{
+  // A real detach, not a hand-made fixture: the planner and the reducer are what
+  // the menu runs, so the payload is checked against the pair they produce.
+  const source = {
+    fps: 30, width: 1920, height: 1080,
+    items: [clip('interview', 'video', 120, 90, { srcInFrame: 30, volume: 0.8 })],
+    tracks: { V1: { kind: 'video' }, A1: { kind: 'audio' } },
+    trackOrder: ['V1', 'A1'], selectedId: null, selectedIds: [],
+  } as unknown as TimelineState;
+  const plan = planAudioDetach(source, 'interview', { itemId: 'interview-audio', trackId: 'track_new' });
+  assert.equal(plan.ok, true, 'the fixture detaches');
+  if (!plan.ok) throw new Error('unreachable');
+  const detached = plan.actions.reduce((acc, action) => reduce(acc, action as Action), source);
+
+  const payload = jianyingDraftPayload(project([timeline('av1', detached.items)]));
+  assert.equal(payload.items.length, 2, 'the pair exports as two clips: picture and sound');
+  const picture = payload.items.find((item) => item.kind === 'video')!;
+  const sound = payload.items.find((item) => item.kind === 'audio')!;
+  assert.equal(picture.volume, 0,
+    'the picture clip reaches the draft at volume 0 — a draft has no srcEnable, so its file audio must not ride along');
+  assert.equal(sound.volume, 0.8, 'the detached clip carries the level the sound plays at');
+  assert.deepEqual([picture.startFrame, picture.durationInFrames, picture.srcInFrame],
+    [sound.startFrame, sound.durationInFrames, sound.srcInFrame], 'both clips cover the same span and in-point');
+
+  // Split the detached clip: both pieces carry the sound, the picture still none.
+  const split = reduce(detached, { type: 'split', id: 'interview-audio', atFrame: 160, newId: 'interview-audio-b' });
+  const splitPayload = jianyingDraftPayload(project([timeline('av1-split', split.items)]));
+  assert.deepEqual(splitPayload.items.map((item) => [item.kind, item.startFrame, item.durationInFrames, item.volume]), [
+    ['video', 120, 90, 0],
+    ['audio', 120, 40, 0.8],
+    ['audio', 160, 50, 0.8],
+  ], 'a split detached clip exports as two audio clips; the picture still carries no sound');
+
+  // Merge puts the sound back on the picture clip, at the volume the user set.
+  const merge = planAudioMerge(detached, 'interview');
+  if (!merge.ok) throw new Error('unreachable');
+  const merged = merge.actions.reduce((acc, action) => reduce(acc, action as Action), detached);
+  assert.deepEqual(jianyingDraftPayload(project([timeline('av1-merged', merged.items)])).items
+    .map((item) => [item.kind, item.volume]), [['video', 0.8]], 'after merge the one clip plays its own sound again');
 }
 
 // ── the agent tool and the dialog share the builder ───────────────────────────

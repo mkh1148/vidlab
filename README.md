@@ -32,6 +32,12 @@ This is a heavily modified private build. The main differences:
   free RAM.
 - **An expanded verification battery** (`npm run verify:*`) with per-feature exit
   tests and rendered-screen scans.
+- **Detach / merge audio**: right-click a timeline video clip to detach its
+  audio onto an independent audio clip, and merge it back later; the hand-offs
+  to FCPXML and CapCut/JianYing drafts stay picture-only.
+- **A single-language English interface** — no locale switcher, no mixed
+  language surfaces; a stored non-English locale preference migrates to
+  English on load.
 
 ## Minimal install and configuration
 
@@ -47,10 +53,7 @@ Steps:
 1. `npm ci`
 2. `npm run build` — this also downloads the whisper.cpp CLI (v1.9.2) and the
    MediaPipe models used by the local AI features.
-3. (recommended) create a `.env.local` file with one line:
-   `UI_LOCALE=en` — this snapshot still defaults the interface locale to `zh`
-   when no locale is configured.
-4. `npm run start:prod` → open http://127.0.0.1:5199
+3. `npm run start:prod` → open http://127.0.0.1:5199
 
 Configuration notes:
 

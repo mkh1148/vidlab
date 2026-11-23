@@ -310,16 +310,34 @@ function itemToSpineElement(
     // In-points count from the file's own start timecode (asset time).
     const start = asset?.media.start;
     const tcFormat = timecodeFormatAttr(start);
+    // AV1: a detached pair is marked on BOTH sides, and the two marks are what
+    // make the hand-off unambiguous in each direction.
+    //  * the video clip is `srcEnable="video"`: the NLE plays no file audio, so it
+    //    cannot double our detached audio clip;
+    //  * the detached audio clip is `srcEnable="audio"`: without it the clip is a
+    //    plain asset-clip of a video file, and OCC's own importer classifies it as
+    //    video (`leafFamily` falls back to the asset's kind), so `reconcileClips`
+    //    has no audio component to re-join and the pair re-imports as two stacked
+    //    video clips, one of them silent.
+    // With both marks the importer reads the video as `muted`, reads the audio clip
+    // as audio-of-that-video, and `reconcileClips` collapses the pair into ONE
+    // audible video clip. audioDetach.verify round-trips the export through the
+    // real importer to keep that true.
+    const srcEnable = item.audioDetached === true
+      ? ' srcEnable="video"'
+      : item.audioOfItemId
+        ? ' srcEnable="audio"'
+        : '';
     const segs = transcriptSegments(item, fps);
     if (segs?.length) {
       // One clip for each reserved segment:offset is already the absolute frame of the timeline (keptSegments passed in startFrame)
       return segs
-        .map((seg) => `<asset-clip ref="${ref}" lane="${lane}" offset="${rationalTime(seg.fromFrame, fps)}" duration="${rationalTime(seg.durFrames, fps)}" start="${mediaTime(start, seg.srcStartFrame, fps)}" name="${name}"${tcFormat}/>`)
+        .map((seg) => `<asset-clip ref="${ref}" lane="${lane}" offset="${rationalTime(seg.fromFrame, fps)}" duration="${rationalTime(seg.durFrames, fps)}" start="${mediaTime(start, seg.srcStartFrame, fps)}" name="${name}"${tcFormat}${srcEnable}/>`)
         .join('\n        ');
     }
     const retime = retimeOf(item, fps, start);
     const clipStart = retime?.start ?? mediaTime(start, item.srcInFrame ?? 0, fps);
-    const attributes = `ref="${ref}" lane="${lane}" offset="${offset}" duration="${duration}" start="${clipStart}" name="${name}"${tcFormat}`;
+    const attributes = `ref="${ref}" lane="${lane}" offset="${offset}" duration="${duration}" start="${clipStart}" name="${name}"${tcFormat}${srcEnable}`;
     const children = [retime?.xml ?? '', backgroundFillActive ? backgroundFillMetadataXml(item) : '']
       .filter(Boolean)
       .join('\n        ');

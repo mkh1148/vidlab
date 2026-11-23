@@ -28,9 +28,8 @@ Object.defineProperty(globalThis, 'document', {
   value: { documentElement },
 });
 
-const { ensureLocaleDict, setLocale } = await import('../i18n/locale');
-await ensureLocaleDict('en');
-setLocale('en');
+const { ensureLocaleDict } = await import('../i18n/locale');
+await ensureLocaleDict();
 
 const { VERB, buildOperation, buildProposal } = await import('./proposal');
 const {

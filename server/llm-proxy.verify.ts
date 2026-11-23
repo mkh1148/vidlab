@@ -10,6 +10,10 @@ import { proxyMiddleware } from './proxy.ts';
 import { llmProxyPlugin, llmProviderForRequest } from './plugins/llm-proxy.ts';
 import { LLM_PROVIDER_PRESETS, normalizeLlmProvider } from '../shared/llm-providers.ts';
 
+// Any CJK, BMP or astral (Ext B-H). The app ships English only, so a Chinese
+// character in a chat-rendered error body is a leak by definition.
+const CJK = /[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef\u{20000}-\u{2EBEF}\u{30000}-\u{3134F}]/u;
+
 async function listen(server: Server): Promise<number> {
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -75,17 +79,17 @@ assert.equal(llmOperationPath('cheaperinference'), '/chat/completions');
     'Cheaper Inference uses its own provider key as an OpenAI-compatible Bearer');
   assert.deepEqual(llmHeaders(reqFor('anthropic')), { 'x-api-key': 'ak-1', 'anthropic-version': '2023-06-01' }, 'anthropic x-api-key(经遗留迁移)');
   assert.deepEqual(llmHeaders(reqFor('xai-oauth')), {}, 'xAI OAuth 不回退到可能失效的持久化 token');
-  assert.match(llmErrorMessage(401, reqFor('gemini')), /Gemini.*设置.*API Key/, '认证错误给设置入口');
-  assert.match(llmErrorMessage(429, reqFor('openai')), /额度不足.*稍后重试/, '限流错误给额度提示');
-  // The body is rendered verbatim in the chat, so it follows the interface
-  // language the browser mirrored. Without this the English interface showed the
-  // Chinese remedy on the most common failure there is: a wrong API key.
+  // The body is rendered verbatim in the chat, so it follows the one interface
+  // language the app ships. Every stored locale value must produce the English
+  // remedy — including the retired zh/it/ru values, which migrate to English.
   const { setKeys } = await import('./keystore.ts');
+  for (const stored of ['en', 'zh', 'it', 'ru', 'nonsense', '']) {
+    await setKeys({ UI_LOCALE: stored });
+    assert.match(llmErrorMessage(401, reqFor('gemini')), /Gemini authentication failed.*Settings → Agent model/, `认证错误给设置入口（stored UI_LOCALE=${JSON.stringify(stored)}）`);
+    assert.match(llmErrorMessage(429, reqFor('openai')), /quota or rate limited.*try again later/, `限流错误给额度提示（stored UI_LOCALE=${JSON.stringify(stored)}）`);
+    assert.doesNotMatch(llmErrorMessage(401, reqFor('gemini')), CJK, `英文界面不得出现中文（stored UI_LOCALE=${JSON.stringify(stored)}）`);
+  }
   await setKeys({ UI_LOCALE: 'en' });
-  assert.match(llmErrorMessage(401, reqFor('gemini')), /Gemini authentication failed.*Settings → Agent model/, '认证错误给设置入口（英文）');
-  assert.match(llmErrorMessage(429, reqFor('openai')), /quota or rate limited.*try again later/, '限流错误给额度提示（英文）');
-  assert.doesNotMatch(llmErrorMessage(401, reqFor('gemini')), /[\u4e00-\u9fff]/, '英文界面不得出现中文');
-  await setKeys({ UI_LOCALE: 'zh' });
 }
 
 const switched = expandLlmProviderPatch(new Map([['LLM_PROVIDER', 'openai']]), 'anthropic');

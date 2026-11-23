@@ -17,6 +17,7 @@ const SEQUENCE = /^序列 (\d+)$/;
 const HIGHLIGHT = /^精彩片段 (\d+)$/;
 const CLIP = /^片段 (\d+)$/;
 const VERSION = /^版本 (.+)$/;
+const CAPTION_STYLE = /^我的样式 (.+)$/;
 const COPY = /^\[Copy\] (.+)$/;
 const DUPLICATE = /^(.+) 副本$/;
 
@@ -32,6 +33,12 @@ export function storedName(name: string): string {
   // moment itself is a locale-formatted timestamp, so only the prefix is ours.
   const version = VERSION.exec(name);
   if (version) return t('版本 {name}', { name: version[1]! });
+  // A caption style preset saved from the style menu is named "我的样式 <date>"
+  // by the save-name prefill, and the agent's preset_save can store any name. The
+  // date (or whatever follows) is the user's, so only the prefix is translated —
+  // a preset saved before the interface was English-only reads in English too.
+  const captionStyle = CAPTION_STYLE.exec(name);
+  if (captionStyle) return t('我的样式 {name}', { name: captionStyle[1]! });
   // duplicateProject prefixes the source name; the source may itself be a
   // generated name, so recurse before the fall-through.
   const copy = COPY.exec(name);

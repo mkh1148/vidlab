@@ -6,12 +6,11 @@ import { TranscriptWindowRoot } from './media/TranscriptWindowRoot';
 import { loadProjectFonts } from './fonts/googleFonts';
 import { hydratePlugins } from './plugins/store';
 import { initSkins } from './skins';
-import { ensureLocaleDict, getLocale, prefetchLocaleDicts } from './i18n/locale';
+import { ensureLocaleDict } from './i18n/locale';
 
-// Kick the active locale's dictionary off FIRST so its fetch overlaps the setup
-// below; the render waits on it so no frame renders untranslated copy. Only
-// this one language is fetched — the other three cost nothing until switched.
-const localeReady = ensureLocaleDict(getLocale());
+// Kick the dictionary off FIRST so its fetch overlaps the setup below; the render
+// waits on it so no frame renders untranslated copy.
+const localeReady = ensureLocaleDict();
 
 // Inject skin variables and apply persistent skin before rendering to avoid flashing the default color in the first frame.
 initSkins();
@@ -32,8 +31,4 @@ void localeReady.then(() => {
       {isTranscriptWindow ? <TranscriptWindowRoot /> : <App />}
     </StrictMode>,
   );
-  // Warm the other languages only once the first paint is out of the way, so
-  // the language switcher stays instant without competing for the boot.
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(prefetchLocaleDicts);
-  else setTimeout(prefetchLocaleDicts, 2_000);
 });

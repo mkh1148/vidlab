@@ -4,17 +4,15 @@
 // rendered raw in src/ and a t('…') key the English dictionary does not have. It
 // cannot see three things this check is about:
 //
-//   1. keys the OTHER locales translate and English does not. The dictionary is
-//      keyed by the Chinese original and t() falls back to that key, so a missing
-//      English entry renders Chinese — the one failure mode the interface must not
-//      have. A key can also be an ORPHAN (the Chinese source text changed after the
-//      translation landed); an orphan leaks nothing, so it is counted, not failed.
-//   2. tData() keys, which read a separate table (en/templates-data.ts).
-//   3. t()/tData() outside src/ — server/, shared/, cli/, desktop/ — and the
+//   1. tData() keys, which read a separate table (en/templates-data.ts).
+//   2. t()/tData() outside src/ — server/, shared/, cli/, desktop/ — and the
 //      non-literal calls whose key is a constant in the same file.
+//   3. the dictionary's own hygiene: no empty value, placeholders preserved, and
+//      no Chinese left in an English value.
 //
-// Plus the dictionary's own hygiene: no empty value, placeholders preserved, and
-// no Chinese left in an English value.
+// Since D-11 English is the only dictionary, so the cross-locale half this check
+// used to carry (keys Italian or Russian translated and English did not) is gone
+// with those payloads — scripts/i18n-en-only.verify.mjs pins their absence.
 //
 // Run: npx tsx scripts/i18n-english.verify.mjs
 import assert from 'node:assert/strict';
@@ -24,15 +22,11 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff]/;
+const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\u{20000}-\u{2EBEF}\u{30000}-\u{3134F}]/u;
 const SOURCE_DIRS = ['src', 'server', 'shared', 'cli', 'desktop'];
 
 const { EN } = await import('../src/i18n/dict/en/index.ts');
-const { IT } = await import('../src/i18n/dict/it/index.ts');
-const { RU } = await import('../src/i18n/dict/ru/index.ts');
-const { ZH_DATA } = await import('../src/i18n/dict/zh/index.ts');
 const EN_DATA = (await import('../src/i18n/dict/en/templates-data.ts')).default;
-const IT_DATA = (await import('../src/i18n/dict/it/templates-data.ts')).default;
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -63,10 +57,6 @@ const placeholders = (text) => (String(text).match(/\{(\w+)\}/g) ?? []).sort().j
 const TABLES = [
   ['en', EN, 'UI'],
   ['en/templates-data', EN_DATA, 'data'],
-  ['it', IT, 'UI'],
-  ['it/templates-data', IT_DATA, 'data'],
-  ['ru', RU, 'UI'],
-  ['zh', ZH_DATA, 'data'],
 ];
 const tableSizes = {};
 for (const [name, table, kind] of TABLES) {
@@ -84,14 +74,6 @@ for (const [name, table, kind] of TABLES) {
     }
   }
 }
-
-// ── 2. keys another locale translates and English does not ──────────────────
-// "Live" means the Chinese original is still a string literal somewhere in the
-// sources, which is what makes it a key t() can be called with. A key that is no
-// longer a literal anywhere is an orphan left behind when the source text changed
-// — dead weight, not a leak. (A plain substring test is not good enough: the
-// orphan '素材保存目录' is a substring of the live '选择素材保存目录'.)
-const sourceLiterals = new Set();
 
 // ── 3 + 4. every key the code passes to t()/tData() ─────────────────────────
 // Literal arguments are read directly; an identifier argument is resolved to the
@@ -126,7 +108,6 @@ for (const file of sourceFiles) {
     return current;
   };
   (function collect(node) {
-    if (ts.isStringLiteralLike(node) && CJK.test(node.text)) sourceLiterals.add(node.text);
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
       const initializer = unwrap(node.initializer);
       if (ts.isStringLiteralLike(initializer)) remember(node.name.text, initializer.text);
@@ -172,19 +153,6 @@ for (const file of sourceFiles) {
     }
     ts.forEachChild(node, visit);
   })(source);
-}
-
-const orphaned = [];
-for (const [name, table] of [['it', IT], ['ru', RU], ['it/templates-data', IT_DATA]]) {
-  for (const key of Object.keys(table)) {
-    const reference = name === 'it/templates-data' ? EN_DATA : EN;
-    if (key in reference) continue;
-    if (sourceLiterals.has(key)) {
-      fail(`${name} translates a key English does not have: ${JSON.stringify(key)} — an English user sees the Chinese original`);
-    } else {
-      orphaned.push(`${name}: ${JSON.stringify(key)}`);
-    }
-  }
 }
 
 // ── 5. data tables whose names reach t() through a variable ─────────────────
@@ -267,7 +235,6 @@ const summary = [
   `effect name/desc/label rows checked: ${effectRowsChecked}`,
   `proposal verb/impact/fallback rows checked: ${proposalRowsChecked}`,
   `sound desc rows checked: ${soundRowsChecked}`,
-  `orphaned translations (source text changed; nothing leaks): ${orphaned.length}`,
 ];
 
 if (failures.length > 0) {
@@ -279,8 +246,4 @@ if (failures.length > 0) {
 
 console.log('i18n English coverage: every key the code translates has an English entry');
 console.log(summary.map((line) => `  ${line}`).join('\n'));
-if (orphaned.length > 0) {
-  console.log('  orphaned translations (safe to delete, kept out of this slice):');
-  for (const entry of orphaned) console.log(`    · ${entry}`);
-}
 assert.ok(Object.keys(EN).length > 2000, 'the English dictionary must be the large one');

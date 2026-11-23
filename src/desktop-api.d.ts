@@ -57,6 +57,12 @@ interface DesktopInferenceApi {
 }
 
 declare global {
+  namespace NodeJS {
+    interface Process {
+      /** Electron-only: set when the app runs packaged (asar); absent under plain Node. */
+      readonly resourcesPath?: string;
+    }
+  }
   interface Window {
     openChatCutDesktop?: {
       getPathForFile(file: File): string | undefined;

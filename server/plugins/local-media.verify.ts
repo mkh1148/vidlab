@@ -16,6 +16,9 @@ import { resolveUploadFile } from '../media-dir.ts';
 import { mediaReferenceManifestPath } from '../media-references.ts';
 import { LOCAL_MEDIA_BROWSE_PATH, LOCAL_MEDIA_IMPORT_PATH, localMediaPlugin } from './local-media.ts';
 
+/** The wide CJK class the i18n detectors use, astral ranges included. */
+const CJK = /[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef\u{20000}-\u{2EBEF}\u{30000}-\u{3134F}]/u;
+
 /** A valid 16-bit mono PCM wav (1s silence) so the probe reports a duration;
  *  CI checkouts have no runtime uploads to copy from. */
 function silentWavBytes(seconds = 1): Uint8Array {
@@ -134,7 +137,12 @@ try {
   assert.equal(response.status, 400, 'an invalid browse body is refused');
   response = await post(LOCAL_MEDIA_BROWSE_PATH, { path: join(root, '..') });
   assert.equal(response.status, 400, 'a path outside the allowlist is refused');
-  assert.match(String((await json(response)).error), /已添加的目录/);
+  // The refusal body is what the renderer shows: ChatMessage prints String(error) from the
+  // tool envelope, which carries this HTTP message through unchanged. English at source.
+  const outsideBody = String((await json(response)).error);
+  assert.match(outsideBody, /not inside an added local media folder/);
+  assert.doesNotMatch(outsideBody, CJK,
+    `the allowlist refusal must be English: ${JSON.stringify(outsideBody)}`);
 
   // ── Import runs the canonical probe/hash chain, then dedupes ──
   const imported = await json(await post(

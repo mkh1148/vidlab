@@ -1,5 +1,6 @@
 import { copyTranscriptIdentity } from '../transcript/identity';
 import { captionTrackPlan } from '../captions/captionTrack';
+import { runAudioDetach, runAudioMerge } from './audioDetach';
 import type { AtomicAction, ProjectDispatch } from './reduce';
 import { maxOrder, projectReduce } from './reduce';
 import { sourceRevisionOf } from './mediaSourceRevision';
@@ -13,6 +14,7 @@ import { planSlip } from './slip';
 import { DEFAULT_TEXT_CONTENT } from './textDefaults';
 import { sourceFramesToTimelineFrames } from './sourceLimit';
 import type { EditorCommands } from './storeCommands';
+import { mediaPoolCommands } from './storeCommandsMediaPool';
 import {
   activeEditorState,
   activeTimeline,
@@ -134,40 +136,7 @@ export function buildCommands(dispatch: ProjectDispatch, getDoc: () => ProjectDo
       batch: (actions, label) => {
         if (actions.length) dispatch({ type: 'batch', actions, label });
       },
-      createMediaFolder: (name, parentId) => {
-        const existing = getDoc().mediaFolders.find((folder) => folder.parentId === parentId && folder.name === name);
-        if (existing) return existing.id;
-        const id = uid('bin');
-        dispatch({ type: 'pool.createFolder', folder: { id, name, parentId } });
-        return id;
-      },
-      renameMediaFolder: (id, name) => dispatch({ type: 'pool.renameFolder', id, name }),
-      deleteMediaFolder: (id) => dispatch({ type: 'pool.deleteFolder', id }),
-      moveMediaAssets: (ids, folderId) => dispatch({ type: 'pool.moveAssets', ids, folderId }),
-      renameMediaAsset: (id, name) => dispatch({ type: 'pool.updateAsset', id, patch: { name } }),
-      renameMediaAssets: (entries) => dispatch({
-        type: 'batch',
-        actions: entries.map(({ id, name }) => ({ type: 'pool.updateAsset', id, patch: { name } })),
-        label: 'Rename media',
-      }),
-      setMediaAssetFavorite: (id, favorite) => dispatch({ type: 'pool.updateAsset', id, patch: { favorite } }),
-      setMediaAssetsFavorite: (ids, favorite) => dispatch({
-        type: 'batch',
-        actions: ids.map((id) => ({ type: 'pool.updateAsset', id, patch: { favorite } })),
-        label: favorite ? 'Favorite media' : 'Unfavorite media',
-      }),
-      editMediaAsset: (id, patch) => dispatch({ type: 'pool.updateAsset', id, patch }),
-      removeMediaAsset: (id) => dispatch({ type: 'pool.removeAsset', id }),
-      removeMediaAssets: (ids) => dispatch({
-        type: 'batch',
-        actions: ids.map((id) => ({ type: 'pool.removeAsset', id })),
-        label: 'Delete media',
-      }),
-      canonicalizeMediaAsset: (duplicateId, canonicalId) => dispatch({
-        type: 'pool.canonicalizeAsset',
-        duplicateId,
-        canonicalId,
-      }),
+      ...mediaPoolCommands(dispatch, getDoc, uid),
       relinkMediaAsset: (id, next) => commitRelink({
         type: 'pool.relinkAsset', id, ...next, durationFps: next.durationFps ?? projectFps(),
       }),
@@ -488,6 +457,8 @@ export function buildCommands(dispatch: ProjectDispatch, getDoc: () => ProjectDo
       setItemDenoise: (id, denoisedSrc, strength, engine) => dispatch({ type: 'setItemDenoise', id, denoisedSrc, strength, engine }),
       setItemDerivedPicture: (id, src, engine) => dispatch({ type: 'setItemDerivedPicture', id, src, engine }),
       setItemFaceRetouch: (id, trackUrl, atlasUrl, engine) => dispatch({ type: 'setItemFaceRetouch', id, trackUrl, atlasUrl, engine }),
+      detachAudio: (id) => runAudioDetach({ dispatch, getDoc, uid }, id),
+      mergeAudio: (id) => runAudioMerge({ dispatch, getDoc, uid }, id),
       selectItem: (id, opts) => dispatch({ type: 'select', id, mode: opts?.mode }),
       selectItems: (ids) => dispatch({ type: 'selectMany', ids }),
       selectAll: () => dispatch({ type: 'selectAll' }),

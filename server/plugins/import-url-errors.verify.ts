@@ -11,6 +11,10 @@ process.env.OPENCHATCUT_DATA_DIR = mkdtempSync(join(tmpdir(), 'import-url-errors
 const PROXY_NAMES = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'PROXY_URL'] as const;
 for (const name of PROXY_NAMES) delete process.env[name];
 
+// Any CJK, BMP or astral (Ext B-H). The app ships English only, so a Chinese
+// character in a user-facing error body is a leak by definition.
+const CJK = /[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef\u{20000}-\u{2EBEF}\u{30000}-\u{3134F}]/u;
+
 const { PublicConnectTimeoutError, PublicResponseTimeoutError } = await import('../safe-public-fetch.ts');
 const { ImportUnreachableError, unreachableImportError } = await import('./import-url-errors.ts');
 const { setKeys } = await import('../keystore.ts');
@@ -61,29 +65,31 @@ process.env.HTTPS_PROXY = 'http://127.0.0.1:7890';
 try {
   const proxied = unreachableImportError(withCode('ECONNRESET'), REMOTE);
   assert.ok(proxied);
-  assert.match(proxied.message, /代理也连不上/, 'a proxied failure points at the proxy rules');
-  assert.doesNotMatch(proxied.message, /配置 PROXY_URL/);
+  assert.match(proxied.message, /proxy could not reach this host either/, 'a proxied failure points at the proxy rules');
+  assert.doesNotMatch(proxied.message, /set PROXY_URL/);
 } finally {
   delete process.env.HTTPS_PROXY;
 }
 
-// The message follows the interface language the browser mirrored into UI_LOCALE; unset
-// keeps the original Chinese, so nothing changes for existing installs.
+// The app ships English only. Every stored UI_LOCALE value — including the retired
+// zh/it/ru ones, which migrate to English on load — must produce the English message.
 await setKeys({ UI_LOCALE: 'en' });
 try {
   const english = unreachableImportError(withCode('ETIMEDOUT'), REMOTE);
   assert.ok(english);
   assert.match(english.message, /Could not connect to commondatastorage\.googleapis\.com \(ETIMEDOUT\)/);
   assert.match(english.message, /Settings → Agent model/);
-  assert.doesNotMatch(english.message, /[一-龥]/, 'no Chinese leaks into the English message');
+  assert.doesNotMatch(english.message, CJK, 'no Chinese leaks into the English message');
   process.env.HTTPS_PROXY = 'http://127.0.0.1:7890';
   const englishProxied = unreachableImportError(withCode('ECONNRESET'), REMOTE);
   delete process.env.HTTPS_PROXY;
   assert.match(englishProxied!.message, /proxy could not reach this host/);
-  await setKeys({ UI_LOCALE: 'it' });
-  assert.match(unreachableImportError(withCode('ENOTFOUND'), REMOTE)!.message, /Impossibile connettersi/);
-  await setKeys({ UI_LOCALE: 'nonsense' });
-  assert.match(unreachableImportError(withCode('ENOTFOUND'), REMOTE)!.message, /无法连接到/, 'an unknown locale falls back to Chinese');
+  for (const stored of ['zh', 'it', 'ru', 'nonsense']) {
+    await setKeys({ UI_LOCALE: stored });
+    const migrated = unreachableImportError(withCode('ENOTFOUND'), REMOTE)!;
+    assert.match(migrated.message, /Could not connect to/, `stored UI_LOCALE=${JSON.stringify(stored)} must render English`);
+    assert.doesNotMatch(migrated.message, CJK, `stored UI_LOCALE=${JSON.stringify(stored)} must not leak Chinese`);
+  }
 } finally {
   await setKeys({ UI_LOCALE: '' });
 }

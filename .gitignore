@@ -88,6 +88,9 @@ docs/*
 # D-slice rulings (kill policy, admission gate, artifact placement, transport).
 # D1b and D2 consume these decisions instead of re-deriving them from the code.
 !docs/d-job-implementation.md
+# AV1's acceptance record: the owned behaviour of detach/merge, including the
+# merge side effects a reviewer has to be able to check against the code.
+!docs/av1-audio-detach.md
 !docs/evidence/
 docs/evidence/*
 !docs/evidence/*.md

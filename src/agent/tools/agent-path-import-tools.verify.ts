@@ -7,6 +7,10 @@ import {
 import type { AgentContext } from '../context';
 import type { DirectoryImportedFile } from '../../../shared/directory-import';
 
+// The same wide CJK class the i18n detectors use, astral ranges included: an ideograph
+// outside the BMP is still Chinese to the person reading the chat panel.
+const CJK = /[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef\u{20000}-\u{2EBEF}\u{30000}-\u{3134F}]/u;
+
 // Single-path tools remain compatible alongside browse and batch import.
 const byName = new Map(AGENT_PATH_IMPORT_SCHEMAS.map((schema) => [schema.name, schema]));
 assert.equal(AGENT_PATH_IMPORT_SCHEMAS.length, 4);
@@ -147,6 +151,38 @@ try {
   assert.match(String(failed.error), /scan failed/, 'bridge error message surfaced');
 } finally {
   delete (globalThis as unknown as { window?: unknown }).window;
+}
+
+// ── The allowlist refusal reaches ChatMessage in English ──
+// ChatMessage renders String(r.error) verbatim for a failed tool call, so whatever the
+// server authors lands in the chat panel. This drives the REAL refusal through the tool
+// layer rather than a copy of its text: the string comes from resolveAgentMediaPath.
+{
+  const { seedKeystore } = await import('../../../server/keystore.ts');
+  const { resolveAgentMediaPath } = await import('../../../server/local-path-import.ts');
+  seedKeystore({ AGENT_IMPORT_ROOTS: '/nonexistent-allowlist-root' });
+  const refusal = await resolveAgentMediaPath('/definitely/outside/every/root.mp4').then(
+    () => null,
+    (error: Error & { code?: string }) => error,
+  );
+  seedKeystore({ AGENT_IMPORT_ROOTS: '' });
+  assert.ok(refusal, 'a path outside the allowlist must be refused');
+  (globalThis as unknown as { window?: unknown }).window = {
+    openChatCutDesktop: {
+      async importAgentPaths() { throw refusal; },
+    },
+  };
+  try {
+    const envelope = await execAgentPathImportTool(
+      'import_asset', { path: '/definitely/outside/every/root.mp4' }, projectCtx,
+    );
+    assert.equal('ok' in envelope, false, 'the refusal is not a success');
+    assert.equal(envelope.code, 'PATH_OUTSIDE_IMPORT_ROOTS', 'the model still sees the code');
+    assert.doesNotMatch(String(envelope.error), CJK,
+      `the envelope ChatMessage renders must be English: ${JSON.stringify(envelope.error)}`);
+  } finally {
+    delete (globalThis as unknown as { window?: unknown }).window;
+  }
 }
 
 console.log('agent-path-import-tools.verify: schema, host resolution, and pool landing passed');

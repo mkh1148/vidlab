@@ -95,7 +95,6 @@ assert.equal(renderStep['continue-on-error'], undefined);
 // too. Ask Git for tracked + nonignored untracked paths, excluding local
 // generated scratch files.
 const dataModules = new Set([
-  'src/i18n/dict/ru/index.ts', // Translation dictionary data, no application logic.
   'src/i18n/dict/en/settings.ts', // Translation dictionary data, no application logic.
 ]);
 const sourceFiles = [...new Set(execFileSync('git', [

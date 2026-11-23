@@ -451,7 +451,10 @@ export async function r2Probe(get: Get): Promise<Response> {
     const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
     const name = (err as { name?: string }).name ?? '';
     if (typeof status === 'number' && status > 0) {
-      const note = status === 404 ? `bucket「${cfg.bucket}」不存在` : name;
+      // English at the source (D-11). classifyStatus() intercepts 404 before this body is
+      // rendered, so the note is unreachable today — but it is a live literal that would
+      // surface the moment that interception changes, and the coupling is not worth keeping.
+      const note = status === 404 ? `bucket "${cfg.bucket}" does not exist` : name;
       return new Response(note, { status });
     }
     throw err; // Network layer (DNS/timeouts/proxy) → runProbe's networkMessage

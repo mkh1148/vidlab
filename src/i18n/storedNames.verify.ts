@@ -19,9 +19,8 @@ Object.defineProperty(globalThis, 'document', {
   value: { documentElement },
 });
 
-const { ensureLocaleDict, setLocale } = await import('./locale');
-await ensureLocaleDict('en');
-setLocale('en');
+const { ensureLocaleDict } = await import('./locale');
+await ensureLocaleDict();
 
 const { storedName } = await import('./storedNames');
 
@@ -40,6 +39,14 @@ assert.equal(storedName('离线编辑前自动版本'), 'Autosave before offline
 // A snapshot taken at a moment keeps the moment verbatim and translates only
 // the prefix the app wrote.
 assert.equal(storedName('版本 11/19 10:30'), 'Version 11/19 10:30');
+
+// A caption style preset: the style menu's save-name prefill writes this name, and
+// the menu renders the stored name back through the same channel — so a preset
+// saved before the interface was English-only reads in English too.
+assert.equal(storedName('我的样式 2026/11/22'), 'My style 2026/11/22');
+assert.equal(storedName('我的样式 11/22/2026'), 'My style 11/22/2026');
+// A name the user typed into the save box is theirs, not a default.
+assert.equal(storedName('My own caption look'), 'My own caption look');
 
 // duplicateProject prefixes the source name; the source may itself be a
 // generated name, so the inner name is translated before the prefix is applied.

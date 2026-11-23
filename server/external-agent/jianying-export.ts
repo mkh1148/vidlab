@@ -26,6 +26,12 @@ export interface JianyingExportClip {
   srcInFrame?: number;
   /** Source frames consumed per timeline frame (2 = double speed). */
   playbackRate?: number;
+  /**
+   * Level the segment plays at, 0..1 (the draft's own default is 1). A detached
+   * video clip arrives at 0: the draft has no srcEnable, so this is how its
+   * picture stops carrying the file's audio while the detached audio clip, a
+   * segment of its own, keeps the sound.
+   */
   volume?: number;
   name?: string;
 }
@@ -293,6 +299,17 @@ interface CapcutOutput {
   segment_id?: unknown;
 }
 
+/** A freshly added segment's level; only a different one needs a `volume` call. */
+const DRAFT_DEFAULT_VOLUME = 1;
+
+/** The level to set on a segment, or null when the draft's default already is it. */
+function volumeToSet(clip: JianyingExportClip): number | null {
+  const level = Number(clip.volume);
+  if (!Number.isFinite(level)) return null;
+  const clamped = Math.min(DRAFT_DEFAULT_VOLUME, Math.max(0, level));
+  return Math.abs(clamped - DRAFT_DEFAULT_VOLUME) < 1e-6 ? null : clamped;
+}
+
 /**
  * Add one clip, then move its segment onto the clip's source window.
  *
@@ -304,6 +321,11 @@ interface CapcutOutput {
  * `speed` (keeps the timeline duration, rescales the source span) and last
  * `trim` (sets the source span, derives timeline duration = span / speed).
  * The reverse order would let `speed` rescale the span `trim` just set.
+ *
+ * `volume` (capcut-cli 0.26: `volume <project> <id> <level>`, 0.0-1.0) is the
+ * only lever the draft format has for a segment's audio, so a clip that must not
+ * sound — a video clip whose own audio was detached — is added and then set to
+ * 0. It is independent of speed and trim, so it goes straight after the add.
  */
 async function addClip(
   run: CapcutRunner,
@@ -312,26 +334,37 @@ async function addClip(
   file: string,
   timing: ClipTiming,
   storeFlags: string[],
-): Promise<{ added: boolean; warning?: string }> {
+  volume: number | null,
+): Promise<{ added: boolean; warnings: string[] }> {
   const label = `${command} ${basename(file)}`;
   const retimed = timing.sourceStart > 0 || timing.rate !== 1;
   const materialLength = retimed ? timing.sourceStart + timing.sourceDuration : timing.duration;
   const added = await run([command, draftPath, file, secondsArg(timing.start), secondsArg(materialLength), ...storeFlags]) as CapcutOutput;
-  if (!added?.ok) return { added: false, warning: `${label}: ${added?.error || 'failed'}` };
-  if (!retimed) return { added: true };
+  if (!added?.ok) return { added: false, warnings: [`${label}: ${added?.error || 'failed'}`] };
+  const warnings: string[] = [];
   const segmentId = typeof added.segment_id === 'string' ? added.segment_id : '';
+  if (volume !== null) {
+    if (!segmentId) {
+      warnings.push(`${label}: capcut-cli returned no segment id; the clip plays at full volume`);
+    } else {
+      const set = await run(['volume', draftPath, segmentId, String(volume), ...storeFlags]) as CapcutOutput;
+      if (!set?.ok) warnings.push(`volume ${basename(file)}: ${set?.error || 'failed'}`);
+    }
+  }
+  if (!retimed) return { added: true, warnings };
   if (!segmentId) {
-    return { added: true, warning: `${label}: capcut-cli returned no segment id; the clip plays its source from 0` };
+    warnings.push(`${label}: capcut-cli returned no segment id; the clip plays its source from 0`);
+    return { added: true, warnings };
   }
   if (timing.rate !== 1) {
     const sped = await run(['speed', draftPath, segmentId, String(timing.rate), ...storeFlags]) as CapcutOutput;
-    if (!sped?.ok) return { added: true, warning: `speed ${basename(file)}: ${sped?.error || 'failed'}` };
+    if (!sped?.ok) return { added: true, warnings: [...warnings, `speed ${basename(file)}: ${sped?.error || 'failed'}`] };
   }
   const trimmed = await run([
     'trim', draftPath, segmentId, secondsArg(timing.sourceStart), secondsArg(timing.sourceDuration), ...storeFlags,
   ]) as CapcutOutput;
-  if (!trimmed?.ok) return { added: true, warning: `trim ${basename(file)}: ${trimmed?.error || 'failed'}` };
-  return { added: true };
+  if (!trimmed?.ok) return { added: true, warnings: [...warnings, `trim ${basename(file)}: ${trimmed?.error || 'failed'}`] };
+  return { added: true, warnings };
 }
 
 /**
@@ -409,8 +442,8 @@ export async function exportJianyingDraft(
     if (timing.overrun >= MICROS_PER_SECOND / fps) {
       warnings.push(`${label}: runs ${secondsArg(timing.overrun)} s past the end of the file; cut at its end`);
     }
-    const outcome = await addClip(run, command, draftPath, file, timing, storeFlags);
-    if (outcome.warning) warnings.push(outcome.warning);
+    const outcome = await addClip(run, command, draftPath, file, timing, storeFlags, volumeToSet(clip));
+    for (const warning of outcome.warnings) warnings.push(warning);
     return outcome.added;
   };
   let addedVideos = 0;

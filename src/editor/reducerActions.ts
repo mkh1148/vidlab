@@ -115,6 +115,13 @@ export type Action =
     atlasUrl: string | null;
     engine?: string | null;
   }
+  /**
+   * Detach-audio pair flag on a VIDEO clip. `true` silences the clip's own audio
+   * because that audio now lives on a separate `kind: 'audio'` clip; `false`
+   * restores it. The audio clip itself is an ordinary item created by `add` and
+   * removed by `remove`, so both directions stay one undoable batch.
+   */
+  | { type: 'setAudioDetached'; id: string; detached: boolean }
   | { type: 'select'; id: string | null; mode?: 'replace' | 'toggle' | 'add' }
   | { type: 'selectMany'; ids: string[] }
   | { type: 'selectAll' }
@@ -184,7 +191,7 @@ export type Dispatch = (a: Action | BatchAction | HistoryControlAction) => void;
 /** dispatch at the project level: per-timeline + project actions + history control */
 export type ProjectDispatch = (a: AnyAction | HistoryControlAction) => void;
 
-export const MUTATING = new Set(['add', 'updateProps', 'relinkTimelineItem', 'move', 'retime', 'slip', 'setVolume', 'setFade', 'setTransform', 'setFilters', 'setZoom', 'setEffects', 'setSpeed', 'replaceMedia', 'reframeKeyframe', 'removeReframeKeyframe', 'setKeyframe', 'removeKeyframe', 'clearKeyframes', 'addTransition', 'setTransition', 'removeTransition', 'addMarker', 'updateMarker', 'removeMarker', 'duplicate', 'remove', 'split', 'clear', 'addAsset', 'setCanvas', 'toggleTrack', 'track.create', 'track.update', 'track.delete', 'track.tighten', 'setCaptions', 'updateCaptions', 'setCaptionsHidden', 'updateWatermark', 'setItemTranscript', 'setItemVariants', 'toggleWord', 'deleteWords', 'cleanScript', 'setGapCap', 'setTranscriptPlayOrder', 'reorderTrackItems', 'clearEdits', 'fixTranscriptWord', 'renameSpeaker', 'setItemDenoise', 'setItemDerivedPicture', 'setItemFaceRetouch', 'setFullState',
+export const MUTATING = new Set(['add', 'updateProps', 'relinkTimelineItem', 'move', 'retime', 'slip', 'setVolume', 'setFade', 'setTransform', 'setFilters', 'setZoom', 'setEffects', 'setSpeed', 'replaceMedia', 'reframeKeyframe', 'removeReframeKeyframe', 'setKeyframe', 'removeKeyframe', 'clearKeyframes', 'addTransition', 'setTransition', 'removeTransition', 'addMarker', 'updateMarker', 'removeMarker', 'duplicate', 'remove', 'split', 'clear', 'addAsset', 'setCanvas', 'toggleTrack', 'track.create', 'track.update', 'track.delete', 'track.tighten', 'setCaptions', 'updateCaptions', 'setCaptionsHidden', 'updateWatermark', 'setItemTranscript', 'setItemVariants', 'toggleWord', 'deleteWords', 'cleanScript', 'setGapCap', 'setTranscriptPlayOrder', 'reorderTrackItems', 'clearEdits', 'fixTranscriptWord', 'renameSpeaker', 'setItemDenoise', 'setItemDerivedPicture', 'setItemFaceRetouch', 'setAudioDetached', 'setFullState',
   // project-level (tl.switch is navigation → deliberately NOT here, so it makes no history step)
   'tl.create', 'tl.duplicate', 'tl.delete', 'tl.rename', 'tl.retarget', 'tl.setFps', 'tl.setHidden', 'tl.setDoc',
   'pool.createFolder', 'pool.renameFolder', 'pool.deleteFolder', 'pool.moveAssets', 'pool.updateAsset', 'pool.setTranscription', 'pool.relinkAsset', 'pool.canonicalizeAsset', 'pool.removeAsset', 'design.set', 'design.patch', 'setBackgroundFill'])

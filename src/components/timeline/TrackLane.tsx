@@ -12,6 +12,7 @@ import {
 import { upsertKeyframe } from '../../editor/keyframes';
 import { getKeyframePropertyDefinition } from '../../editor/keyframeRegistry';
 import { canRateStretchItem, rateStretchGeometry } from '../../editor/rateStretch';
+import { isItemPictureOnly } from '../../editor/audioDetach';
 import { sourceWindowForTimelineRange } from '../../editor/sourceLimit';
 import { planSlip } from '../../editor/slip';
 import type { EditorCommands } from '../../editor/store';
@@ -84,7 +85,10 @@ function ClipEffectBadges({
       className: 'zoom',
     });
   }
-  if (item.denoisedSrc) {
+  // AV1: the isolated voice is the SOUND, and a detached clip's sound is on the
+  // detached audio clip (which carries this chip itself). On the picture-only clip
+  // the chip would claim audio the clip no longer plays.
+  if (item.denoisedSrc && !isItemPictureOnly(item)) {
     chips.push({ key: 'iso', label: t('人声'), title: t('已应用人声隔离'), className: 'iso' });
   }
   if (inTransition) {

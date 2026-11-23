@@ -15,8 +15,8 @@ assert.deepEqual(allMissing, ['transcription', 'image', 'voice', 'video', 'music
 for (const key of allMissing) {
   assert.ok(CAPABILITY_LABELS[key], `label for ${key}`);
 }
-assert.equal(formatCapabilityNames(['A', 'B'], 'zh'), 'A、B');
-assert.equal(formatCapabilityNames(['A', 'B'], 'ru'), 'A и B');
+// The interface is English, so the list joins the English way — no ideographic comma.
+assert.equal(formatCapabilityNames(['A', 'B'], 'en'), 'A and B');
 
 // Every creative capability enabled → banner hides.
 applyLiveCaps({ transcription: true, image: true, voice: true, video: true, music: true, sound: true });

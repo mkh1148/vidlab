@@ -2,20 +2,21 @@ import assert from 'node:assert/strict';
 import { createElement, createRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
-import { ensureLocaleDict, setLocale, tData } from '../../i18n/locale.ts';
+import { ensureLocaleDict, tData } from '../../i18n/locale.ts';
 import { TEMPLATES } from '../../editor/initial.ts';
 import type { RefItem } from './ChatComposer.tsx';
 
-setLocale('zh');
-// Dictionaries are fetched per locale (see i18n/dictRegistry.ts); tData() only
-// resolves once the active one has landed, exactly as main.tsx awaits at boot.
-await ensureLocaleDict('zh');
+// Dictionaries are fetched lazily (see i18n/dictRegistry.ts); tData() only resolves once
+// the dictionary has landed, exactly as main.tsx awaits at boot.
+await ensureLocaleDict();
+// The interface is English and the built-in template names already are, so the catalog
+// lookup must return each name unchanged instead of reaching for a Chinese name table
+// that no longer ships (D-11).
 for (const template of TEMPLATES) {
-  const alreadyChinese = /[\u3400-\u9fff]/.test(template.name);
   assert.equal(
-    alreadyChinese || tData(template.name) !== template.name,
-    true,
-    `built-in MG template is missing a Chinese display name: ${template.name}`,
+    tData(template.name),
+    template.name,
+    `built-in MG template name must display unchanged: ${template.name}`,
   );
 }
 
@@ -38,11 +39,12 @@ const vite = await createServer({
     load(id) {
       if (id !== testLocaleId) return null;
       return `
-        export const getLocale = () => 'zh';
+        export const getLocale = () => 'en';
         export const t = (text) => text;
         export const tData = (text) =>
-          text === 'Bar Chart - Annual Sales' ? '柱状图 · 年度销售' : text;
+          text === 'Bar Chart - Annual Sales' ? 'Bar chart · annual sales' : text;
         export const useT = () => t;
+        export const localizedCatalogText = (english) => english;
       `;
     },
   }],
@@ -77,9 +79,9 @@ try {
   await vite.close();
 }
 
-assert.match(composerMarkup, /@柱状图 · 年度销售/, 'built-in template chips should show their localized catalog name');
+assert.match(composerMarkup, /@Bar chart · annual sales/, 'built-in template chips should show their catalog display name');
 assert.match(composerMarkup, /@我的自定义模板/, 'unmatched custom template chips should keep their original name');
 assert.match(composerMarkup, /@7月7日\.mp4/, 'non-template references should keep the media asset name');
 assert.deepEqual(selectedRefs, originalRefs, 'localized display must not mutate the underlying references');
 
-console.log('template-reference-localization.verify: template chips use localized display names');
+console.log('template-reference-localization.verify: template chips use the catalog display name');

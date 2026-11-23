@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { ensureLocaleDict } from '../i18n/dictRegistry';
-import { setLocale, t } from '../i18n/locale';
+import { t } from '../i18n/locale';
 import {
   CONTEXT_OVERFLOW_GUIDANCE_ZH,
   contextOverflowGuidance,
@@ -15,7 +15,10 @@ assert.equal(
 const firstRound = 'The current request is too large for this model context window. Remove large attachments.';
 const compacted = 'The recent conversation is still too large after context compaction. Start a new chat.';
 
-// ── zh (default): guidance leads, original retained, round-trip exact ────────
+// ── the one interface language: guidance leads, original retained, round-trip exact ──
+await ensureLocaleDict();
+assert.notEqual(t(CONTEXT_OVERFLOW_GUIDANCE_ZH), CONTEXT_OVERFLOW_GUIDANCE_ZH,
+  'the English dictionary must translate the overflow guidance');
 {
   const mapped = contextOverflowGuidance(firstRound);
   assert.ok(mapped, 'first-round overflow must map to guidance');
@@ -25,20 +28,7 @@ const compacted = 'The recent conversation is still too large after context comp
   assert.equal(extractOverflowOriginal(mapped!), firstRound, 'the original must round-trip exactly');
   assert.ok(contextOverflowGuidance(compacted)?.startsWith(t(CONTEXT_OVERFLOW_GUIDANCE_ZH)),
     'post-compaction overflow must map too');
-}
-
-// ── en: the guidance follows the current locale and still round-trips ────────
-{
-  setLocale('en');
-  await ensureLocaleDict('en');
-  assert.notEqual(t(CONTEXT_OVERFLOW_GUIDANCE_ZH), CONTEXT_OVERFLOW_GUIDANCE_ZH,
-    'the en dictionary must translate the overflow guidance');
-  const mapped = contextOverflowGuidance(firstRound);
-  assert.ok(mapped?.startsWith(t(CONTEXT_OVERFLOW_GUIDANCE_ZH)),
-    'en users get the localized guidance, not the Chinese original');
-  assert.equal(extractOverflowOriginal(mapped!), firstRound,
-    'en-composed overflow messages round-trip too');
-  setLocale('zh');
+  assert.doesNotMatch(mapped!, /[\u4e00-\u9fff]/, 'the guidance is English, not the Chinese original');
 }
 
 assert.equal(extractOverflowOriginal('plain error text'), null, 'plain text has no embedded original');

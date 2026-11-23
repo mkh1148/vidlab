@@ -1,3 +1,7 @@
+// Design-style names, roles and guides render as the source data says (owner decision
+// D-11). The Chinese display tables these helpers used to consult are gone with the other
+// interface languages, so the guarantee is now the opposite one: nothing renames a preset,
+// a colour role or a style guide on its way to the settings panel.
 import assert from 'node:assert/strict';
 import { DESIGN_STYLE_PRESETS } from '../../editor/design-presets';
 import {
@@ -8,30 +12,26 @@ import {
 } from './designStyleLocalization';
 
 const modern = DESIGN_STYLE_PRESETS.find((preset) => preset.name === 'Modern Editorial');
-assert.ok(modern, '测试数据应包含 Modern Editorial');
+assert.ok(modern, 'the fixture must contain Modern Editorial');
 
-assert.equal(localizeDesignPresetName(modern.name, 'zh'), '现代杂志编辑风');
 assert.equal(localizeDesignPresetName(modern.name, 'en'), modern.name);
-assert.equal(localizeDesignRole('background-chart', 'zh'), '图表背景');
-assert.equal(localizeDesignRole('chart-warm-mid', 'zh'), '图表暖色中间调');
 assert.equal(localizeDesignRole('background-chart', 'en'), 'background-chart');
-assert.equal(localizeDesignFontRole('accent', 'zh'), '强调字体');
-assert.equal(localizeDesignFontRole('callout', 'zh'), '标注字体');
-assert.equal(localizeDesignFontRole('impact', 'zh'), '冲击字体');
 assert.equal(localizeDesignFontRole('accent', 'en'), 'accent');
-assert.equal(
-  localizeDesignStyleGuide(modern.style.styleGuide ?? '', 'zh'),
-  '现代杂志编辑风：暖灰纸张、笔记本或报刊网格、衬线标题与清晰的 Roboto 正文。整体像数据记者的批注笔记，以黑灰为主，仅用橙色或黄色强调关键数值和语句。',
-);
 assert.equal(localizeDesignStyleGuide(modern.style.styleGuide ?? '', 'en'), modern.style.styleGuide);
 
+// Every preset, not just the fixture: a table that came back for one name would show up
+// as a renamed row in the settings panel.
 for (const preset of DESIGN_STYLE_PRESETS) {
-  assert.notEqual(localizeDesignPresetName(preset.name, 'zh'), preset.name, `${preset.name} 应提供中文名称`);
-  assert.notEqual(
-    localizeDesignStyleGuide(preset.style.styleGuide ?? '', 'zh'),
+  assert.equal(
+    localizeDesignPresetName(preset.name, 'en'),
+    preset.name,
+    `${preset.name} must display unchanged`,
+  );
+  assert.equal(
+    localizeDesignStyleGuide(preset.style.styleGuide ?? '', 'en'),
     preset.style.styleGuide,
-    `${preset.name} 应提供中文品牌指引`,
+    `${preset.name} must keep its own style guide`,
   );
 }
 
-console.log('design-style-localization.verify: preset names, roles and guides localize to Chinese');
+console.log('design-style-localization.verify: preset names, roles and guides display unchanged');

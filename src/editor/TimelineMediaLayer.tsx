@@ -13,6 +13,7 @@ import { itemEditOpts, itemWindow, keptSegments } from '../transcript/edit';
 import { hasOperationalTranscript } from '../transcript/types';
 import { voiceIsolationMix } from '../audio/voiceMix';
 import { audibleTranscriptSegments } from './audioTranscriptGuard';
+import { isItemAudioSilenced } from './audioDetach';
 import { backgroundFillAppearanceFor, backgroundFillFilter } from './backgroundFill';
 import { appearanceAt } from './clipFade';
 import { pictureSourceOf, usesDerivedPicture } from './derivedPicture';
@@ -178,7 +179,10 @@ export function ContinuousVideoAudio({ items, muted, gainAt, premountFor, browse
     const timelineFrame = first.startFrame + frame;
     const item = items.find((candidate) => timelineFrame >= candidate.startFrame
       && timelineFrame < candidate.startFrame + candidate.durationInFrames);
-    if (!item || muted) return 0;
+    // AV1: a detached clip inside the run is picture-only, so the continuous
+    // audio must go quiet for exactly its span and resume after it. The run is
+    // one <Sequence> with one decoder, so the check has to be per item.
+    if (!item || isItemAudioSilenced(item, muted)) return 0;
     const localFrame = timelineFrame - item.startFrame;
     return volumeAtFrame(item, localFrame) * gainAt(timelineFrame)
       * clipFadeFactor(localFrame, item.durationInFrames, item.fadeInFrames, item.fadeOutFrames);

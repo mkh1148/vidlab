@@ -11,8 +11,10 @@
 // has already reviewed. So the lists live here and both import them. The rules
 // themselves are documented in docs/i18n-allowlist.md.
 
-/** The wide class: Han, kana, CJK punctuation and fullwidth forms. */
-export const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\u3000-\u303f\uff00-\uffef]/;
+/** The wide class: Han, kana, CJK punctuation and fullwidth forms, BMP and astral.
+ *  CJK Ext B–F (U+20000–U+2EBEF) and Ext G/H (U+30000–U+3134F) are ideographs a
+ *  BMP-only class silently passes; the `u` flag is what makes \u{...} legal. */
+export const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\u3000-\u303f\uff00-\uffef\u{20000}-\u{2EBEF}\u{30000}-\u{3134F}]/u;
 
 /** Callees whose first argument is a translation key (A2). */
 export const TRANSLATION_CALLEES = new RegExp(

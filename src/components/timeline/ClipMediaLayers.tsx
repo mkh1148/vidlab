@@ -1,5 +1,6 @@
 import type { TimelineItem } from '../../editor/types';
-import { filmstripBackground, peaksPath, useClipPreview } from '../../media/clipPreview';
+import { isItemPictureOnly } from '../../editor/audioDetach';
+import { filmstripBackground, peaksPath, useClipPreview, type ClipPreview } from '../../media/clipPreview';
 import type { TimelineFrameWindow } from './timelineUtil';
 import { clipMediaGeometry, type ClipMediaGeometry } from './clipMediaGeometry';
 
@@ -7,8 +8,14 @@ import { clipMediaGeometry, type ClipMediaGeometry } from './clipMediaGeometry';
 // Data comes from /api/waveform, /api/filmstrip (see src/media/clipPreview.ts); geometry button
 // srcIn/playbackRate/px mapping, so the frames and waves are in the right position after cropping, speed changing, and timeline scaling.
 // The layer is under the label (z-index 0), the pointer is not blocked, and the drag/cropping feel remains unchanged.
+//
+// AV1: a video clip whose own audio was detached is picture-only, so it draws no
+// wave strip and its filmstrip takes the full height — otherwise the timeline
+// claims the clip still carries the sound that now lives on the detached clip.
+// `isItemPictureOnly` is the one rule; merge clears the flag and the strip returns.
 
-const STRIP_RATIO = 0.62; // Video with sound: upper 62% frame bar, lower 38% sound wave
+/** Video with sound: upper 62% frame bar, lower 38% sound wave. */
+export const STRIP_RATIO = 0.62;
 
 interface FilmstripStyle {
   backgroundImage: string;
@@ -59,8 +66,7 @@ function WaveLayer({ geometry, height, path, strip, video }: {
   );
 }
 
-export function ClipMediaLayers({ item, px, fps, height, clipStartFrame, durationInFrames,
-  srcInFrame, playbackRate, visibleWindow }: {
+export interface ClipMediaLayersProps {
   item: TimelineItem;
   px: number;
   /** The height of the fragment content area (px), the amplitude of the sound wave path is calculated based on it */
@@ -71,8 +77,11 @@ export function ClipMediaLayers({ item, px, fps, height, clipStartFrame, duratio
   srcInFrame: number;
   playbackRate: number;
   visibleWindow: TimelineFrameWindow;
-}) {
-  const preview = useClipPreview(item.src, item.kind, item.sourceRevision);
+}
+
+/** The layers for one clip, with its preview data already in hand (renderable in a test). */
+export function ClipMediaLayersView({ item, preview, px, fps, height, clipStartFrame, durationInFrames,
+  srcInFrame, playbackRate, visibleWindow }: ClipMediaLayersProps & { preview: ClipPreview | null }) {
   const geometry = clipMediaGeometry({
     clipStartFrame, durationInFrames, srcInFrame, playbackRate, px, visibleWindow,
   });
@@ -82,7 +91,7 @@ export function ClipMediaLayers({ item, px, fps, height, clipStartFrame, duratio
   const strip = isVideo ? filmstripBackground(preview, {
     px, fps, srcInFrame: geometry.srcInFrame, playbackRate,
   }) : null;
-  const hasWave = preview.peaks.length > 0;
+  const hasWave = !isItemPictureOnly(item) && preview.peaks.length > 0;
   const waveH = strip && hasWave ? Math.max(6, height * (1 - STRIP_RATIO)) : height;
   const d = hasWave
     ? peaksPath(preview, {
@@ -97,4 +106,9 @@ export function ClipMediaLayers({ item, px, fps, height, clipStartFrame, duratio
       {d && <WaveLayer geometry={geometry} height={waveH} path={d} strip={!!strip} video={isVideo} />}
     </>
   );
+}
+
+export function ClipMediaLayers(props: ClipMediaLayersProps) {
+  const preview = useClipPreview(props.item.src, props.item.kind, props.item.sourceRevision);
+  return <ClipMediaLayersView {...props} preview={preview} />;
 }

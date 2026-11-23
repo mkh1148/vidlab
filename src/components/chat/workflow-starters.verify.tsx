@@ -20,8 +20,8 @@ const vite = await createServer({
     load(id) {
       if (id !== localeModuleId) return null;
       return `
-        export const getLocale = () => 'zh';
-        export const localizedCatalogText = (_english, chinese) => chinese;
+        export const getLocale = () => 'en';
+        export const localizedCatalogText = (english) => english;
         export const t = (text) => text;
         export const useT = () => t;
       `;
@@ -84,10 +84,10 @@ assert.equal(
   'every built-in workflow should render as an independently bordered card',
 );
 assert.equal((pickerMarkup.match(/aria-pressed="true"/g) ?? []).length, 1, 'exactly one workflow should expose selected state');
-assert.match(pickerMarkup, /长视频转短视频/);
-assert.match(pickerMarkup, /技能创作器/);
-assert.match(pickerMarkup, /新闻智能粗剪/);
-assert.match(pickerMarkup, /直播智能切片/);
+assert.match(pickerMarkup, /Long Video to Shorts/);
+assert.match(pickerMarkup, /Skill Creator/);
+assert.match(pickerMarkup, /News Rough Cut/);
+assert.match(pickerMarkup, /Livestream to Clips/);
 assert.match(pendingComposerMarkup, /请等待附件导入完成。/, 'pending attachment reason should be visible');
 assert.match(pendingComposerMarkup, /aria-describedby="cc-chat-composer-import-status"/, 'textarea should describe its pending gate');
 const pendingSubmitButton = pendingComposerMarkup.match(/<button[^>]*class="cc-chat-send-btn"[^>]*>/)?.[0];

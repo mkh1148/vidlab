@@ -8,6 +8,7 @@ import { TRANSITION_LABELS, ZOOM_SHAPE_LABELS, type TimelineItem, type TimelineS
 import { ALL_FX, LUT_EFFECTS } from '../../gl/fx/effects';
 import { Icon, type IconName } from '../icons';
 import { useT } from '../../i18n/locale';
+import { showAppToast } from '../../ui/appToast';
 import { contextReferenceItems } from './clipContextSelection';
 
 // speed presets for the variable speed submenu
@@ -181,6 +182,12 @@ export function ClipContextMenu({ item, transitions, x, y, playhead, commands, t
   const isDom = item.kind === 'motion-graphic' || item.kind === 'text'; // DOM clips → alpha MG export
   const canSpeed = item.kind === 'video' || item.kind === 'audio' || item.kind === 'sequence';
   const canRelink = !timeline.tracks?.[item.track]?.locked && !!item.src && ['video', 'audio', 'image', 'gif', 'svg'].includes(item.kind);
+  // AV1: detach/merge only apply to a video clip, and the pair flag decides which
+  // direction is available. Both entries stay visible so the menu teaches the
+  // pair; the inapplicable one is disabled rather than hidden.
+  const audioLocked = !!timeline.tracks?.[item.track]?.locked;
+  const canDetachAudio = item.kind === 'video' && !audioLocked && item.audioDetached !== true && !!item.src;
+  const canMergeAudio = item.kind === 'video' && !audioLocked && item.audioDetached === true;
   const rate = item.playbackRate ?? 1;
   const displayedRate = displaySpeedRate(rate);
   const reviewFrame = Math.max(item.startFrame, Math.min(playhead, item.startFrame + item.durationInFrames - 1));
@@ -244,6 +251,32 @@ export function ClipContextMenu({ item, transitions, x, y, playhead, commands, t
         disabled={!syncLockGroup && batchN < 2}
         onClick={run(() => toggleRelationship('sync-lock'))}
       />
+      {/* AV1: the detach/merge pair only exists on a video clip. Both entries
+          stay visible there so the menu teaches the pair; the inapplicable one
+          is disabled rather than hidden. */}
+      {item.kind === 'video' && (
+        <>
+          <Sep />
+          <Item
+            label={t('分离音频')}
+            icon="music"
+            disabled={!canDetachAudio}
+            onClick={run(() => {
+              const result = commands.detachAudio(item.id);
+              if (!result.ok) showAppToast(result.error, { error: true });
+            })}
+          />
+          <Item
+            label={t('合并音频')}
+            icon="volume"
+            disabled={!canMergeAudio}
+            onClick={run(() => {
+              const result = commands.mergeAudio(item.id);
+              if (!result.ok) showAppToast(result.error, { error: true });
+            })}
+          />
+        </>
+      )}
       <Sep />
       <Item label={t('复制')} icon="copy" shortcut="⌘C" onClick={run(() => commands.duplicateItem(item.id))} />
       <Item label={t('切分')} icon="scissors" shortcut="C" disabled={!inside} onClick={run(() => commands.splitItem(item.id, playhead))} />

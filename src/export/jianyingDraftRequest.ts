@@ -10,6 +10,7 @@
 // show (sequenceFlatten).
 import { captionPages } from '../captions/exportCaptions';
 import { joinCaptionWords } from '../captions/types';
+import { isItemPictureOnly } from '../editor/audioDetach';
 import { activeTimeline, type ProjectDoc, type TimelineItem, type TimelineState } from '../editor/types';
 import { placeRange, timelinePlacements, type TimelinePlacement } from '../editor/sequenceFlatten';
 import { sourceFrameAt, timelineFramesToSourceFrames } from '../editor/sourceLimit';
@@ -84,6 +85,12 @@ function playbackSpans(item: TimelineItem & { kind: JianyingDraftClipKind }, fps
 
 // A span clipped by its sequence window starts that many frames later in its
 // source; rates compose through the nesting. Stills stay stills.
+//
+// AV1: a clip whose own audio was detached reaches the draft at volume 0 — the
+// draft has no srcEnable, so a segment's volume is the only way to say "this
+// picture carries no sound". The detached audio clip is a clip of its own and
+// keeps the volume the sound plays at, so the pair sounds like the timeline and
+// not twice. Any other clip carries the volume the preview plays it at.
 function placedClips(placement: TimelinePlacement): JianyingDraftClip[] {
   const { timeline } = placement;
   return timeline.items.filter(isDraftClipItem).flatMap((item) => playbackSpans(item, timeline.fps).flatMap((span) => {
@@ -97,7 +104,7 @@ function placedClips(placement: TimelinePlacement): JianyingDraftClip[] {
       durationInFrames: placed.rootDuration,
       srcInFrame: still ? 0 : sourceFrameAt(span, placed.localStart - span.startFrame),
       playbackRate: still ? 1 : span.playbackRate * placement.rate,
-      volume: item.volume,
+      volume: isItemPictureOnly(item) ? 0 : item.volume,
       name: item.name,
     }];
   }));

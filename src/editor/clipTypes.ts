@@ -166,6 +166,21 @@ export interface TimelineItem extends TranscriptCarrier {
   multicamAngleId?: string;
   /** 0..1 playback volume (default 1) — audio + video */
   volume?: number;
+  /**
+   * Detach-audio pair flag on a VIDEO item: true means the clip's own audio has
+   * been moved to a separate `kind: 'audio'` clip (`audioOfItemId === this.id`)
+   * and must no longer sound — in preview or in export. It is a FLAG, not
+   * `volume: 0`, so the user's own volume/fade/keyframes survive untouched and
+   * merge is a pure flag flip back to audible.
+   */
+  audioDetached?: boolean;
+  /**
+   * Back-pointer on the DETACHED audio clip: the id of the video item whose
+   * audio it carries. The pair is independent (each side selects/trims/moves on
+   * its own); this field only lets "Merge audio" find the clip to remove and
+   * lets the UI show the pairing. A dangling id (video deleted) is inert.
+   */
+  audioOfItemId?: string;
   /** source in-point (frames) for video/audio trimming or a nested sequence source window */
   srcInFrame?: number;
   /** fade in/out durations (frames): opacity ramp for visual clips, volume ramp

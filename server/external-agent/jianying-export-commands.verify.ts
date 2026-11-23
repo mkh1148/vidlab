@@ -124,6 +124,58 @@ try {
     assert.deepEqual(probed, ['master.mp4', 'voice.wav'], 'each file probed once; stills never');
   }
 
+  // ── AV1: a detached pair's picture segment is silenced, its sound is not ─────
+  {
+    // What jianyingDraftPayload sends for a detached pair: the picture clip at
+    // volume 0 and the detached audio clip at the level the sound plays at. The
+    // draft has no srcEnable, so `volume` is the only way to stop the picture
+    // segment from carrying its file's audio on top of the audio segment.
+    const { calls, seams } = recorder();
+    const result = await exportJianyingDraft({
+      draftName: 'occ-verify', draftsDir: DRAFTS, fps: 30,
+      items: [
+        video(120, 90, { srcInFrame: 30, volume: 0 }),
+        { kind: 'audio', src: voice, startFrame: 120, durationInFrames: 90, srcInFrame: 30, volume: 0.8 },
+      ],
+    }, seams);
+    assert.deepEqual(result.warnings, []);
+    assert.deepEqual(calls.slice(1), [
+      // 4 s in, source 1 s + 3 s: added with the source end, then silenced, then trimmed.
+      ['add-video', DRAFT, master, '4', '4', ...STORE_FLAGS],
+      ['volume', DRAFT, 'seg-1', '0', ...STORE_FLAGS],
+      ['trim', DRAFT, 'seg-1', '1', '3', ...STORE_FLAGS],
+      ['add-audio', DRAFT, voice, '4', '4', ...STORE_FLAGS],
+      ['volume', DRAFT, 'seg-2', '0.8', ...STORE_FLAGS],
+      ['trim', DRAFT, 'seg-2', '1', '3', ...STORE_FLAGS],
+    ], 'the picture segment is set to 0 and the detached audio segment keeps its own level');
+
+    // The draft's own default needs no call, and an out-of-range level is clamped
+    // instead of reaching capcut-cli.
+    const defaults = recorder();
+    await exportJianyingDraft({
+      draftName: 'occ-verify', draftsDir: DRAFTS, fps: 30,
+      items: [video(0, 30, { volume: 1 }), video(30, 30, { volume: Number.NaN }), video(60, 30, { volume: 2 })],
+    }, defaults.seams);
+    assert.deepEqual(defaults.calls.map((args) => args[0]), ['init', 'add-video', 'add-video', 'add-video'],
+      'a clip at the default level, or with no usable level, is left alone');
+    const clamped = recorder();
+    await exportJianyingDraft({ draftName: 'occ-verify', draftsDir: DRAFTS, fps: 30, items: [video(0, 30, { volume: -1 })] }, clamped.seams);
+    assert.deepEqual(clamped.calls[2], ['volume', DRAFT, 'seg-1', '0', ...STORE_FLAGS], 'a negative level is clamped to 0');
+
+    // No segment id: report the level that was not applied, do not guess.
+    const blind = recorder({ 'add-video': () => ({ ok: true }) });
+    const blindResult = await exportJianyingDraft({ draftName: 'occ-verify', draftsDir: DRAFTS, fps: 30, items: [video(0, 30, { volume: 0 })] }, blind.seams);
+    assert.deepEqual(blindResult.warnings,
+      ['add-video master.mp4: capcut-cli returned no segment id; the clip plays at full volume']);
+    assert.deepEqual(blind.calls.map((args) => args[0]), ['init', 'add-video']);
+
+    // A failed volume call is a warning, not a lost clip.
+    const refused = recorder({ volume: () => ({ ok: false, error: 'Segment not found: seg-1' }) });
+    const refusedResult = await exportJianyingDraft({ draftName: 'occ-verify', draftsDir: DRAFTS, fps: 30, items: [video(0, 30, { volume: 0 })] }, refused.seams);
+    assert.equal(refusedResult.addedVideos, 1);
+    assert.deepEqual(refusedResult.warnings, ['volume master.mp4: Segment not found: seg-1']);
+  }
+
   // ── a window never reads past the end of its file ─────────────────────────────
   {
     // Frame counts are rounded, so a clip "to the end" can overshoot its file by

@@ -189,7 +189,7 @@ export function settingsPlugin(): Plugin {
             if ('MEDIA_DIR' in patch) {
               const rawMediaDir = String(patch.MEDIA_DIR ?? '');
               const checked = await checkMediaDir(rawMediaDir, profile);
-              if (!checked.ok) throw new Error(checked.error ?? 'invalid media directory');
+              if (!checked.ok) throw new Error(checked.error ? localized(checked.error) : 'invalid media directory');
               const nextMediaDir = expandMediaDir(rawMediaDir) ?? profile.mediaDir;
               await syncUploadDirectories(
                 previousMediaDir,

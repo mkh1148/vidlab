@@ -7,6 +7,13 @@ import { browseLocalMedia } from '../server/agent-local-media.ts';
 import { resolveAgentMediaPath } from '../server/local-path-import.ts';
 import { isAgentLocalMediaRequest } from '../shared/agent-local-media.ts';
 
+// The allowlist refusal is authored in English at the source (D-11): it travels
+// server route -> localMediaServerApi -> agent-path-import-tools -> ChatMessage, which
+// renders String(error) verbatim in the chat panel. A Chinese sentence there is a leak
+// the owner reads, so the matcher and the CJK guard below both pin the English form.
+const OUTSIDE_ROOTS = /not inside an added local media folder/;
+const CJK = /[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef\u{20000}-\u{2EBEF}\u{30000}-\u{3134F}]/u;
+
 const fixture = await mkdtemp(join(tmpdir(), 'occ-local-media-'));
 const root = await realpath(fixture);
 try {
@@ -41,11 +48,11 @@ try {
   assert.equal((await browseLocalMedia({ path: root, recursive: true })).truncated, true);
 
   seedKeystore({ AGENT_IMPORT_ROOTS: join(root, 'Interview') });
-  await assert.rejects(browseLocalMedia({ path: root }), /已添加的目录/);
+  await assert.rejects(browseLocalMedia({ path: root }), OUTSIDE_ROOTS);
   assert.equal((await browseLocalMedia({ path: join(root, 'Interview') })).entries.length, 1);
   if (process.platform !== 'win32') {
     await symlink(root, join(root, 'Interview', 'escape'), 'dir');
-    await assert.rejects(browseLocalMedia({ path: join(root, 'Interview', 'escape') }), /已添加的目录/);
+    await assert.rejects(browseLocalMedia({ path: join(root, 'Interview', 'escape') }), OUTSIDE_ROOTS);
     const nested = await browseLocalMedia({ path: join(root, 'Interview'), recursive: true });
     assert.equal(nested.entries.length, 1, 'recursive scan does not follow symlink cycles');
     const alias = join(root, 'alias');
@@ -55,7 +62,17 @@ try {
       'explicit symlink roots remain browsable after canonicalization');
   }
   seedKeystore({ AGENT_IMPORT_ROOTS: join(root, 'missing-root') });
-  await assert.rejects(resolveAgentMediaPath(join(root, 'A.MP4')), /已添加的目录/);
+  await assert.rejects(resolveAgentMediaPath(join(root, 'A.MP4')), OUTSIDE_ROOTS);
+  // The refusal the chat panel renders: same function, same message, checked for CJK.
+  // This is the envelope ChatMessage prints verbatim, so a Chinese sentence here is a leak.
+  const refusal = await resolveAgentMediaPath(join(root, 'A.MP4')).then(
+    () => null,
+    (error: Error & { code?: string }) => error,
+  );
+  assert.ok(refusal, 'a path outside the allowlist must be refused');
+  assert.equal(refusal.code, 'PATH_OUTSIDE_IMPORT_ROOTS', 'the refusal keeps its code for the model');
+  assert.doesNotMatch(refusal.message, CJK,
+    `the allowlist refusal must be English: ${JSON.stringify(refusal.message)}`);
 } finally {
   seedKeystore({ AGENT_IMPORT_ROOTS: '' });
   await rm(fixture, { recursive: true, force: true });

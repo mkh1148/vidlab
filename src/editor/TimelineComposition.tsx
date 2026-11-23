@@ -16,6 +16,7 @@ import { previewTransitionType } from './transitionPreview';
 import { TimelineReadinessGate } from './TimelineReadinessGate';
 import { timelineReadinessKey } from './timelineReadinessKey';
 import { isBackgroundFillActive } from './backgroundFill';
+import { isItemAudioSilenced } from './audioDetach';
 import { ClipWrapper } from './TimelineClipWrapper';
 import { GlTransitionVisibility } from './GlTransitionVisibility';
 import { updateReadyGlWindows } from './glTransitionVisibilityState';
@@ -159,6 +160,11 @@ function TimelineContent({ state, project, transparent, browserRenderer = false,
   };
   const isHidden = (t: TimelineItem['track']) => state.tracks?.[t]?.hidden ?? false;
   const isMuted = (t: TimelineItem['track']) => forceMuted || (state.tracks?.[t]?.muted ?? false);
+  // AV1: a video clip whose own audio was detached onto a separate audio clip is
+  // picture-only. It rides the same mute seam as a muted track, so the preview
+  // and the server render (one renderer, D-10) can never disagree, and the
+  // clip's own volume/fades/volume-keyframes stay untouched for merge.
+  const isSilent = (item: TimelineItem) => isItemAudioSilenced(item, isMuted(item.track));
   const trackIds = timelineTrackIds(state);
   const visualTracks = trackIds.filter((id) => trackKind(state, id) === 'video');
   // hidden track = fully disabled (no picture, no sound)
@@ -324,7 +330,7 @@ function TimelineContent({ state, project, transparent, browserRenderer = false,
           key={`sv:${group[0]!.id}`}
           group={group}
           fit={fit}
-          muted={isMuted(group[0]!.track)}
+          muted={isSilent(group[0]!)}
           canvasW={state.width}
           canvasH={state.height}
           premountFor={premountFrames}
@@ -355,7 +361,7 @@ function TimelineContent({ state, project, transparent, browserRenderer = false,
               : item.kind === 'solid'
               ? <SolidLayer item={item} canvasW={state.width} canvasH={state.height} borderRadius={borderRadius} />
               : <MediaFill item={item} frameOffset={-eb} fit={fillBackground ? 'contain' : fit}
-                  muted={isMuted(item.track)} groupedAudio={groupedVideoIds.has(item.id)}
+                  muted={isSilent(item)} groupedAudio={groupedVideoIds.has(item.id)}
                   gainAt={(frame) => duckGain(item.track, frame)} canvasW={state.width} canvasH={state.height}
                   borderRadius={borderRadius} browserRenderer={browserRenderer}
                   onPreviewStatus={environment.isPlayer && item.id === selectedItemId && !selectedEffectStaticStatus

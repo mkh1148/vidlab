@@ -94,7 +94,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps) {
             return (
               <div key={g.id} style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 11, color: theme.textDim, letterSpacing: 0.4, margin: '0 4px 6px' }}>
-                  {locale === 'zh' ? `${g.labelZh} · ${g.label}` : g.label}
+                  {g.label}
                 </div>
                 <div style={{ display: 'grid', gap: 2 }}>
                   {rows.map((a) => {

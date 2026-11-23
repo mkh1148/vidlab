@@ -1,4 +1,5 @@
 import type { AudioAsset } from '../audio/library';
+import type { AudioDetachResult } from './audioDetach';
 import type { CaptionTrackRefusal } from '../captions/captionTrack';
 import type { CaptionsData } from '../captions/types';
 import type { SerializableFxDef } from '../gl/fx/uniforms';
@@ -187,6 +188,13 @@ export interface EditorCommands {
   setItemDerivedPicture: (id: string, src: string | null, engine?: string | null) => void;
   /** D4 face retouching: attach the landmark track + skin atlas, or null to restore. */
   setItemFaceRetouch: (id: string, trackUrl: string | null, atlasUrl: string | null, engine?: string | null) => void;
+  /**
+   * AV1: move a video clip's own audio onto a new, independent audio clip on a
+   * free audio lane and make the video clip picture-only. One undo step.
+   */
+  detachAudio: (id: string) => AudioDetachResult;
+  /** AV1: remove the detached audio clip(s) and make the video clip sound again. One undo step. */
+  mergeAudio: (id: string) => AudioDetachResult;
   /** Select one clip. mode: replace (default) | toggle (⌘/Ctrl) | add. */
   selectItem: (id: string | null, opts?: { mode?: 'replace' | 'toggle' | 'add' }) => void;
   /** Replace multi-selection (e.g. shift-range). */

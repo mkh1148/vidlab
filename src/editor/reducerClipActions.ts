@@ -409,6 +409,30 @@ export function applyClipAction(s: TimelineState, a: Action): TimelineState | un
         )),
       };
     }
+    case 'setAudioDetached': {
+      const target = s.items.find((x) => x.id === a.id);
+      if (!target || lockedItem(s, a.id)) return s;
+      // Only a video clip can own a detachable audio track.
+      if (target.kind !== 'video') return s;
+      if ((target.audioDetached === true) === a.detached) return s;
+      // `false` DROPS the field instead of storing false or undefined: the flag is
+      // absent on every clip that was never detached, so merge/undo return to
+      // exactly that shape (byte-exact undo, no `audioDetached` noise in docs).
+      if (a.detached) {
+        return {
+          ...s,
+          items: s.items.map((item) => (item.id === a.id ? { ...item, audioDetached: true } : item)),
+        };
+      }
+      return {
+        ...s,
+        items: s.items.map((item) => {
+          if (item.id !== a.id) return item;
+          const { audioDetached: _cleared, ...rest } = item;
+          return rest;
+        }),
+      };
+    }
     default:
       return undefined;
   }

@@ -10,6 +10,7 @@ import { deleteCaptionPreset, listCaptionPresets, saveCaptionPreset, type Captio
 import { captionsOnTrack, type TimelineState, type TrackId } from '../editor/types';
 import type { EditorCommands } from '../editor/store';
 import { useT } from '../i18n/locale';
+import { storedName } from '../i18n/storedNames';
 import { captionsForTrack } from './captionTrack';
 import { newManualCaptions } from './manualCaptions';
 import { captionTemplatePatch } from './captionTemplatePatch';
@@ -140,7 +141,7 @@ export function CaptionStyleMenu({ state, commands, trackId, pos, error, onError
             {presets.map((p) => (
               <button key={p.id} type="button" onClick={() => applyPreset(p)}>
                 <span className="cc-caption-style-swatch" style={{ background: '#292929', color: '#fff' }}>★</span>
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{storedName(p.name)}</span>
                 <span
                   className="cc-caption-preset-del"
                   role="button"
@@ -173,7 +174,7 @@ export function CaptionStyleMenu({ state, commands, trackId, pos, error, onError
           className="cc-caption-style-save"
           disabled={!current}
           title={current ? t('把当前模板/覆盖样式保存为用户预设') : t('请先启用字幕')}
-          onClick={() => setNameDraft(`我的样式 ${new Date().toLocaleDateString()}`)}
+          onClick={() => setNameDraft(t('我的样式 {name}', { name: new Date().toLocaleDateString() }))}
         >
           {t('＋ 保存当前样式...')}
         </button>

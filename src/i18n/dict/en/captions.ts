@@ -126,6 +126,9 @@ export default {
   // CaptionStyleMenu — Pop-up chrome and errors
   '样式': 'Styles',
   '我的样式': 'My styles',
+  // The save-name prefill and the display of a preset saved with it: one key, so
+  // the draft the user sees and the stored name they see later cannot drift.
+  '我的样式 {name}': 'My style {name}',
   '删除此预设': 'Delete this preset',
   '预设名称': 'Preset name',
   '保存': 'Save',

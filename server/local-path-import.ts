@@ -63,7 +63,11 @@ function outsideRootsError(path: string, roots: readonly string[]): AgentPathImp
   return {
     path,
     code: 'PATH_OUTSIDE_IMPORT_ROOTS',
-    error: `该路径不在已添加的本地素材目录中。已添加的目录：${roots.join(', ')}`,
+    // English at the source, not through a translation layer: this message travels
+    // server route -> localMediaServerApi -> agent-path-import-tools -> ChatMessage,
+    // which renders String(error) verbatim in the chat panel (D-11, one interface
+    // language). An interpolated sentence can never be a dictionary key anyway.
+    error: `That path is not inside an added local media folder. Added folders: ${roots.join(', ')}`,
   };
 }
 
