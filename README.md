@@ -3,12 +3,12 @@
 Private, local-first AI video editor — single source snapshot, no project history.
 
 Vidlab builds on [OpenChatCut](https://github.com/0xsline/OpenChatCut); the upstream
-**AGPL-3.0** license is retained in full (see `LICENSE`). This repository is a private
-snapshot for the owner's work; it is not a public distribution and has no releases.
+**AGPL-3.0** license is retained in full (see `LICENSE`). This repository is a public
+source snapshot of the owner's build; it is a snapshot, not a maintained distribution, and has no releases.
 
 ## How this build differs from upstream OpenChatCut
 
-This is a heavily modified private build. The main differences:
+This is a heavily modified build. The main differences:
 
 - **Six AI features that run fully locally** (no cloud calls, no account):
   - local transcription of clip audio (whisper.cpp CLI, GGML weights, cached on disk);
@@ -77,5 +77,6 @@ Configuration notes:
 - `desktop/`, `cli/`, `scripts/`, `shared/`, `assets/`, `public/`, `remotion/`
 
 Internal design docs and build-process notes are intentionally not part of this
-snapshot. This repository stays private; making it public has license
-consequences that must be resolved first.
+snapshot. The code is offered under AGPL-3.0 (see `LICENSE` and the upstream
+attribution above): you may use, study, modify, and redistribute it, including
+these modifications, under the same license.
